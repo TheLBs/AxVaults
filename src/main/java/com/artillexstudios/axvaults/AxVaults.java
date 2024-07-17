@@ -17,6 +17,7 @@ import com.artillexstudios.axvaults.commands.AdminCommand;
 import com.artillexstudios.axvaults.commands.PlayerCommand;
 import com.artillexstudios.axvaults.database.Database;
 import com.artillexstudios.axvaults.database.impl.H2;
+import com.artillexstudios.axvaults.database.impl.MariaDB;
 import com.artillexstudios.axvaults.database.impl.SQLite;
 import com.artillexstudios.axvaults.libraries.Libraries;
 import com.artillexstudios.axvaults.listeners.BlackListListener;
@@ -51,11 +52,11 @@ public final class AxVaults extends AxPlugin {
     public static Config CONFIG;
     public static Config MESSAGES;
     public static MessageUtils MESSAGEUTILS;
+    public static BukkitAudiences BUKKITAUDIENCES;
+    public static BukkitCommandHandler COMMANDHANDLER;
     private static AxPlugin instance;
     private static ThreadedQueue<Runnable> threadedQueue;
     private static Database database;
-    public static BukkitAudiences BUKKITAUDIENCES;
-    public static BukkitCommandHandler COMMANDHANDLER;
 
     public static ThreadedQueue<Runnable> getThreadedQueue() {
         return threadedQueue;
@@ -84,21 +85,37 @@ public final class AxVaults extends AxPlugin {
         int pluginId = 20541;
         new Metrics(this, pluginId);
 
-        CONFIG = new Config(new File(getDataFolder(), "config.yml"), getResource("config.yml"), GeneralSettings.builder().setUseDefaults(false).build(), LoaderSettings.builder().setAutoUpdate(true).build(), DumperSettings.DEFAULT, UpdaterSettings.builder().setVersioning(new BasicVersioning("version")).build());
-        MESSAGES = new Config(new File(getDataFolder(), "messages.yml"), getResource("messages.yml"), GeneralSettings.builder().setUseDefaults(false).build(), LoaderSettings.builder().setAutoUpdate(true).build(), DumperSettings.DEFAULT, UpdaterSettings.builder().setVersioning(new BasicVersioning("version")).build());
+        CONFIG = new Config(new File(getDataFolder(), "config.yml"), getResource("config.yml"), GeneralSettings.builder()
+            .setUseDefaults(false).build(), LoaderSettings.builder().setAutoUpdate(true)
+            .build(), DumperSettings.DEFAULT, UpdaterSettings.builder().setVersioning(new BasicVersioning("version"))
+            .build());
+        MESSAGES = new Config(new File(getDataFolder(), "messages.yml"), getResource("messages.yml"), GeneralSettings.builder()
+            .setUseDefaults(false).build(), LoaderSettings.builder().setAutoUpdate(true)
+            .build(), DumperSettings.DEFAULT, UpdaterSettings.builder().setVersioning(new BasicVersioning("version"))
+            .build());
 
         MESSAGEUTILS = new MessageUtils(MESSAGES.getBackingDocument(), "prefix", CONFIG.getBackingDocument());
         BUKKITAUDIENCES = BukkitAudiences.create(this);
 
         threadedQueue = new ThreadedQueue<>("AxVaults-Datastore-thread");
 
-        switch (CONFIG.getString("database.type").toLowerCase()) {
+        switch (CONFIG.getString("database.type", "h2").toLowerCase()) {
             case "sqlite": {
                 database = new SQLite();
                 break;
             }
-            default: {
+            case "mariadb": {
+                database = new MariaDB();
+                break;
+            }
+            case "h2": {
                 database = new H2();
+                break;
+            }
+            default: {
+                getLogger().warning("No Valid Database Selected. Disabling Plugin");
+                this.getPluginLoader().disablePlugin(this);
+                return;
             }
         }
 

@@ -16,8 +16,14 @@ vault-selector-rows: 6
 vault-storage-rows: 6
 
 database:
-  # h2, sqlite
+  # h2, sqlite, mariadb
   type: "h2"
+  mariadb:
+    host: ""
+    port: 3306
+    username: ""
+    password: ""
+    database: ""
 
 # modes:
 # 0 - every vault needs a separate permission (axvaults.vault.10 will only give access to vault #10)

@@ -7,6 +7,9 @@ folia-supported: true
 softdepend:
   - PlaceholderAPI
 
+libraries:
+  - org.mariadb.jdbc:mariadb-java-client:3.1.4
+
 permissions:
   axvaults.vault.1:
     default: true
