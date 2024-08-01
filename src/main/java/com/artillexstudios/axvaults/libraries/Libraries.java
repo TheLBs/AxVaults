@@ -5,6 +5,8 @@ import com.artillexstudios.axapi.libs.libby.relocation.Relocation;
 
 public enum Libraries {
 
+    MARIADB_JDBC("org.mariadb.jdbc:mariadb-java-client:3.1.4"),
+
     SQLITE_JDBC("org{}xerial:sqlite-jdbc:3.42.0.0"),
 
     H2_JDBC("com{}h2database:h2:2.1.214");
