@@ -19,7 +19,7 @@ public class JoinLeaveListener implements Listener {
 
     @EventHandler
     public void onJoin(@NotNull PlayerJoinEvent event) {
-        VaultManager.getPlayer(event.getPlayer().getUniqueId());
+        VaultManager.getPlayerAsync(event.getPlayer().getUniqueId());
     }
 
     @EventHandler

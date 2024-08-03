@@ -89,7 +89,7 @@ public class MariaDB implements Database {
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
                     final String sql2 = "UPDATE axvaults_data SET storage = ?, icon = ? WHERE uuid = ? AND id = ?;";
-                    try (PreparedStatement stmt2 = dataSource.getConnection().prepareStatement(sql2)) {
+                    try (PreparedStatement stmt2 = stmt.getConnection().prepareStatement(sql2)) {
                         final byte[] bytes = SerializationUtils.invToBits(vault.getStorage().getContents());
                         stmt2.setBytes(1, bytes);
                         stmt2.setString(2, vault.getRealIcon() == null ? null : vault.getRealIcon().name());
@@ -99,7 +99,7 @@ public class MariaDB implements Database {
                     }
                 } else {
                     final String sql2 = "INSERT INTO axvaults_data(id, uuid, storage, icon) VALUES (?, ?, ?, ?);";
-                    try (PreparedStatement stmt2 = dataSource.getConnection().prepareStatement(sql2)) {
+                    try (PreparedStatement stmt2 = stmt.getConnection().prepareStatement(sql2)) {
                         stmt2.setInt(1, vault.getId());
                         stmt2.setString(2, vault.getUUID().toString());
                         final byte[] bytes = SerializationUtils.invToBits(vault.getStorage().getContents());
@@ -109,6 +109,7 @@ public class MariaDB implements Database {
                     }
                 }
             }
+            stmt.getConnection().close();
         } catch (SQLException ex) {
             ex.printStackTrace();
         }
@@ -127,6 +128,7 @@ public class MariaDB implements Database {
                     VaultManager.addVault(vault);
                 }
             }
+            stmt.getConnection().close();
         } catch (SQLException ex) {
             ex.printStackTrace();
         }
@@ -141,6 +143,7 @@ public class MariaDB implements Database {
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) return true;
             }
+            stmt.getConnection().close();
         } catch (SQLException ex) {
             ex.printStackTrace();
         }
@@ -156,6 +159,7 @@ public class MariaDB implements Database {
             if (num == null) stmt.setString(2, null);
             else stmt.setInt(2, num);
             stmt.executeUpdate();
+            stmt.getConnection().close();
         } catch (SQLException ex) {
             ex.printStackTrace();
         }
@@ -169,6 +173,7 @@ public class MariaDB implements Database {
         try (PreparedStatement stmt = dataSource.getConnection().prepareStatement(sql)) {
             stmt.setString(1, Serializers.LOCATION.serialize(location));
             stmt.executeUpdate();
+            stmt.getConnection().close();
         } catch (SQLException ex) {
             ex.printStackTrace();
         }
@@ -181,6 +186,7 @@ public class MariaDB implements Database {
             stmt.setString(1, uuid.toString());
             stmt.setInt(2, num);
             stmt.executeUpdate();
+            stmt.getConnection().close();
         } catch (SQLException ex) {
             ex.printStackTrace();
         }
@@ -198,6 +204,7 @@ public class MariaDB implements Database {
                     PlacedVaults.addVault(Serializers.LOCATION.deserialize(rs.getString(1)), vaultInt);
                 }
             }
+            stmt.getConnection().close();
         } catch (SQLException ex) {
             ex.printStackTrace();
         }

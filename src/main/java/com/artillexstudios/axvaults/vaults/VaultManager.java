@@ -27,6 +27,14 @@ public class VaultManager {
         return vaultPlayer;
     }
 
+    public static VaultPlayer getPlayerAsync(@NotNull UUID uuid) {
+        if (players.containsKey(uuid)) return players.get(uuid);
+        final VaultPlayer vaultPlayer = new VaultPlayer(uuid);
+        players.put(uuid, vaultPlayer);
+        vaultPlayer.loadAsync();
+        return vaultPlayer;
+    }
+
     public static void removePlayer(@NotNull Player player) {
         final VaultPlayer vaultPlayer = players.remove(player.getUniqueId());
         if (vaultPlayer == null) return;
