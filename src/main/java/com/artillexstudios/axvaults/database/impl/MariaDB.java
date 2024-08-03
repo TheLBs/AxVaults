@@ -7,21 +7,21 @@ import com.artillexstudios.axvaults.placed.PlacedVaults;
 import com.artillexstudios.axvaults.utils.SerializationUtils;
 import com.artillexstudios.axvaults.vaults.Vault;
 import com.artillexstudios.axvaults.vaults.VaultManager;
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.UUID;
 
 public class MariaDB implements Database {
-    private Connection conn;
+    private HikariDataSource dataSource;
 
     @Override
     public String getType() {
@@ -30,30 +30,41 @@ public class MariaDB implements Database {
 
     @Override
     public void setup() {
-
         try {
-            String host = AxVaults.CONFIG.getString("database.mariadb.host");
-            int port = AxVaults.CONFIG.getInt("database.mariadb.port", 3306);
-            String user = AxVaults.CONFIG.getString("database.mariadb.username")
-                .isEmpty() ? null : AxVaults.CONFIG.getString("database.mariadb.username");
-            String password = AxVaults.CONFIG.getString("database.mariadb.password")
-                .isEmpty() ? null : AxVaults.CONFIG.getString("database.mariadb.password");
-            String database = AxVaults.CONFIG.getString("database.mariadb.database");
-
-            String connection = "jdbc:mariadb://" + host + ":" + port + "/" + database;
-
             Class.forName("org.mariadb.jdbc.Driver");
-            conn = DriverManager.getConnection(connection, user, password);
-            conn.setAutoCommit(true);
-
-            AxVaults.getInstance().getLogger().info("Connection - " + conn.getClientInfo());
-        } catch (Exception e) {
+        } catch (ClassNotFoundException e) {
             throw new RuntimeException(e);
         }
 
+        String host = AxVaults.CONFIG.getString("database.mariadb.host");
+        int port = AxVaults.CONFIG.getInt("database.mariadb.port", 3306);
+        String user = AxVaults.CONFIG.getString("database.mariadb.username")
+            .isEmpty() ? null : AxVaults.CONFIG.getString("database.mariadb.username");
+        String password = AxVaults.CONFIG.getString("database.mariadb.password")
+            .isEmpty() ? null : AxVaults.CONFIG.getString("database.mariadb.password");
+        String database = AxVaults.CONFIG.getString("database.mariadb.database");
+
+        HikariConfig config = new HikariConfig();
+        config.setJdbcUrl("jdbc:mariadb://" + host + ":" + port + "/" + database);
+        config.setUsername(user);
+        config.setPassword(password);
+        config.addDataSourceProperty("cachePrepStmts", "true");
+        config.addDataSourceProperty("prepStmtCacheSize", "250");
+        config.addDataSourceProperty("prepStmtCacheSqlLimit", "2048");
+        config.addDataSourceProperty("useServerPrepStmts", "true");
+        config.addDataSourceProperty("useLocalSessionState", "true");
+        config.addDataSourceProperty("rewriteBatchedStatements", "true");
+        config.addDataSourceProperty("cacheResultSetMetadata", "true");
+        config.addDataSourceProperty("cacheServerConfiguration", "true");
+        config.addDataSourceProperty("elideSetAutoCommits", "true");
+        config.addDataSourceProperty("maintainTimeStats", "false");
+        config.addDataSourceProperty("maxLifetime", "600000");
+
+        dataSource = new HikariDataSource(config);
+
         final String CREATE_TABLE = "CREATE TABLE IF NOT EXISTS `axvaults_data`( `id` INT(128) NOT NULL, `uuid` VARCHAR(36) NOT NULL, `storage` LONGBLOB, `icon` VARCHAR(128) );";
 
-        try (PreparedStatement stmt = conn.prepareStatement(CREATE_TABLE)) {
+        try (PreparedStatement stmt = dataSource.getConnection().prepareStatement(CREATE_TABLE)) {
             stmt.executeUpdate();
         } catch (SQLException ex) {
             ex.printStackTrace();
@@ -61,7 +72,7 @@ public class MariaDB implements Database {
 
         final String CREATE_TABLE2 = "CREATE TABLE IF NOT EXISTS `axvaults_blocks` ( `location` VARCHAR(255) NOT NULL, `number` INT, PRIMARY KEY (`location`) );";
 
-        try (PreparedStatement stmt = conn.prepareStatement(CREATE_TABLE2)) {
+        try (PreparedStatement stmt = dataSource.getConnection().prepareStatement(CREATE_TABLE2)) {
             stmt.executeUpdate();
         } catch (SQLException ex) {
             ex.printStackTrace();
@@ -71,14 +82,14 @@ public class MariaDB implements Database {
     @Override
     public void saveVault(@NotNull Vault vault) {
         final String sql = "SELECT * FROM axvaults_data WHERE uuid = ? AND id = ?;";
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try (PreparedStatement stmt = dataSource.getConnection().prepareStatement(sql)) {
             stmt.setString(1, vault.getUUID().toString());
             stmt.setInt(2, vault.getId());
 
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
                     final String sql2 = "UPDATE axvaults_data SET storage = ?, icon = ? WHERE uuid = ? AND id = ?;";
-                    try (PreparedStatement stmt2 = conn.prepareStatement(sql2)) {
+                    try (PreparedStatement stmt2 = dataSource.getConnection().prepareStatement(sql2)) {
                         final byte[] bytes = SerializationUtils.invToBits(vault.getStorage().getContents());
                         stmt2.setBytes(1, bytes);
                         stmt2.setString(2, vault.getRealIcon() == null ? null : vault.getRealIcon().name());
@@ -88,7 +99,7 @@ public class MariaDB implements Database {
                     }
                 } else {
                     final String sql2 = "INSERT INTO axvaults_data(id, uuid, storage, icon) VALUES (?, ?, ?, ?);";
-                    try (PreparedStatement stmt2 = conn.prepareStatement(sql2)) {
+                    try (PreparedStatement stmt2 = dataSource.getConnection().prepareStatement(sql2)) {
                         stmt2.setInt(1, vault.getId());
                         stmt2.setString(2, vault.getUUID().toString());
                         final byte[] bytes = SerializationUtils.invToBits(vault.getStorage().getContents());
@@ -106,7 +117,7 @@ public class MariaDB implements Database {
     @Override
     public void loadVaults(@NotNull UUID uuid) {
         final String sql = "SELECT * FROM axvaults_data WHERE uuid = ?;";
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try (PreparedStatement stmt = dataSource.getConnection().prepareStatement(sql)) {
             stmt.setString(1, uuid.toString());
 
             try (ResultSet rs = stmt.executeQuery()) {
@@ -124,7 +135,7 @@ public class MariaDB implements Database {
     @Override
     public boolean isVault(@NotNull Location location) {
         final String sql = "SELECT * FROM axvaults_blocks WHERE location = ?;";
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try (PreparedStatement stmt = dataSource.getConnection().prepareStatement(sql)) {
             stmt.setString(1, Serializers.LOCATION.serialize(location));
 
             try (ResultSet rs = stmt.executeQuery()) {
@@ -140,7 +151,7 @@ public class MariaDB implements Database {
     @Override
     public void setVault(@NotNull Location location, @Nullable Integer num) {
         final String sql = "INSERT INTO `axvaults_blocks`(`location`, `number`) VALUES (?, ?)";
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try (PreparedStatement stmt = dataSource.getConnection().prepareStatement(sql)) {
             stmt.setString(1, Serializers.LOCATION.serialize(location));
             if (num == null) stmt.setString(2, null);
             else stmt.setInt(2, num);
@@ -155,7 +166,7 @@ public class MariaDB implements Database {
     @Override
     public void removeVault(@NotNull Location location) {
         final String sql = "DELETE FROM axvaults_blocks WHERE location = ?;";
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try (PreparedStatement stmt = dataSource.getConnection().prepareStatement(sql)) {
             stmt.setString(1, Serializers.LOCATION.serialize(location));
             stmt.executeUpdate();
         } catch (SQLException ex) {
@@ -166,7 +177,7 @@ public class MariaDB implements Database {
     @Override
     public void deleteVault(@NotNull UUID uuid, int num) {
         final String sql = "DELETE FROM axvaults_data WHERE uuid = ? AND id = ?;";
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try (PreparedStatement stmt = dataSource.getConnection().prepareStatement(sql)) {
             stmt.setString(1, uuid.toString());
             stmt.setInt(2, num);
             stmt.executeUpdate();
@@ -178,7 +189,7 @@ public class MariaDB implements Database {
     @Override
     public void load() {
         final String sql = "SELECT * FROM axvaults_blocks;";
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try (PreparedStatement stmt = dataSource.getConnection().prepareStatement(sql)) {
 
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
@@ -195,7 +206,7 @@ public class MariaDB implements Database {
     @Override
     public void disable() {
         try {
-            conn.close();
+            dataSource.close();
         } catch (Exception ex) {
             ex.printStackTrace();
         }
